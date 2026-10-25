@@ -240,7 +240,7 @@ function updateSortIcons() {
   });
 }
 
-// 2. Tabell-rendering - Flytter skolested fra notat og inn i statusboksen
+
 // 2. Tabell-rendering - Korrigert for forskjøvne felter i Firebase
 function renderTable() {
   const tbody = document.getElementById('ipadTableBody');
@@ -303,7 +303,8 @@ function renderTable() {
     return currentSortDirection === 'asc' ? result : -result;
   });
 
-  // Oppdater Statistikk
+
+// Oppdater Statistikk
   const iBrukCount = ipads.filter(i => {
     const st = `${i.status || ''} ${i.skolested || ''} ${i.notat || ''}`.toLowerCase();
     const isKassertOrBorte = st.includes('kassert') || st.includes('borte');
@@ -316,12 +317,16 @@ function renderTable() {
     return (st.includes('tilgjengelig') || st.includes('lager') || (!i.etternavn && !i.fornavn)) && !isKassertOrBorte;
   }).length;
 
-  const manglerSerienrCount = ipads.filter(i => !(i.serienr || '').trim()).length;
+  // Telle antall som er Kassert eller Borte
+  const kassertBorteCount = ipads.filter(i => {
+    const st = `${i.status || ''} ${i.skolested || ''} ${i.notat || ''}`.toLowerCase();
+    return st.includes('kassert') || st.includes('borte');
+  }).length;
 
   if (document.getElementById('statTotal')) document.getElementById('statTotal').innerText = ipads.length;
   if (document.getElementById('statActive')) document.getElementById('statActive').innerText = iBrukCount;
   if (document.getElementById('statAvailable')) document.getElementById('statAvailable').innerText = tilgjengeligCount;
-  if (document.getElementById('statManglerSerienr')) document.getElementById('statManglerSerienr').innerText = manglerSerienrCount;
+  if (document.getElementById('statKassertBorte')) document.getElementById('statKassertBorte').innerText = kassertBorteCount;
 
   if (filtered.length === 0) {
     if (emptyState) emptyState.classList.remove('hidden');
