@@ -10,6 +10,11 @@ const firebaseConfig = {
   measurementId: "G-SFWECC2NG7"
 };
 
+// Initialiser Firebase umiddelbart ved oppstart
+if (typeof firebase !== 'undefined' && !firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+
 // Globale variabler
 let ipads = [];
 let dbRef = null;
@@ -45,9 +50,6 @@ function getGjeldendeSkolear() {
 // 1. Database-initiering med Skoleårsstruktur
 function initDatabase() {
   try {
-    if (!firebase.apps.length) {
-      firebase.initializeApp(firebaseConfig);
-    }
     isFirebaseActive = true;
 
     const connStatus = document.getElementById('connectionStatus');
