@@ -33,10 +33,6 @@ const INITIAL_SAMPLE_DATA = [
   { id: '5', etternavn: '', fornavn: '', trinn: '', klasse: '', brukernavn: '', ipadnr: '1027', serienr: '', lagtIEndpoint: '', skolested: '', status: 'Kassert', notat: '' }
 ];
 
-// Oppstart
-window.addEventListener('DOMContentLoaded', () => {
-  initDatabase();
-});
 
 // Hjelpefunksjon som finner inneværende skoleår basert på dato (skifte skjer 1. august)
 function getGjeldendeSkolear() {
@@ -1068,6 +1064,7 @@ function showToast(message, type = 'success') {
     toast.style.opacity = '0';
   }, 3000);
 }
+
 // Lytte på Firebase Auth-status
 window.addEventListener('DOMContentLoaded', () => {
   if (typeof firebase !== 'undefined' && firebase.auth) {
@@ -1078,8 +1075,12 @@ window.addEventListener('DOMContentLoaded', () => {
       const btnAddDevice = document.getElementById('btnAddDevice');
       const btnNewYear = document.getElementById('btnNewYear');
 
-      if (user) {
-        // Logget inn: Skjul innloggingsknapp, vis brukerinfo
+      // Liste over godkjente e-postadresser
+      const godkjenteBrukere = ['77tor@ikrs.no', 'tor.skarprud@gmail.com'];
+      const isAuthorized = user && godkjenteBrukere.includes(user.email);
+
+      if (isAuthorized) {
+        // Logget inn og godkjent: Skjul innloggingsknapp, vis brukerinfo
         if (btnLogin) btnLogin.classList.add('hidden');
         if (userInfo) userInfo.classList.remove('hidden');
         if (emailLabel) emailLabel.textContent = user.email;
@@ -1087,19 +1088,27 @@ window.addEventListener('DOMContentLoaded', () => {
         // Aktiver handlinger for innloggede brukere
         if (btnAddDevice) btnAddDevice.style.display = 'inline-flex';
         if (btnNewYear) btnNewYear.style.display = 'inline-block';
+
+        // Start tilkobling og dataletting NÅ som innloggingen er verifisert
+        initDatabase();
       } else {
-        // Utlogget: Vis innloggingsknapp, skjul brukerinfo
+        // Utlogget eller uautorisert e-post: Vis innloggingsknapp, skjul brukerinfo
         if (btnLogin) btnLogin.classList.remove('hidden');
         if (userInfo) userInfo.classList.add('hidden');
         if (emailLabel) emailLabel.textContent = '';
         
-        // Skjul redigeringsknapper når man ikke er logget inn
+        // Skjul redigeringsknapper når man ikke har tilgang
         if (btnAddDevice) btnAddDevice.style.display = 'none';
         if (btnNewYear) btnNewYear.style.display = 'none';
+
+        // Tøm dataene slik at tabellen blir blank for uinloggede
+        ipads = [];
+        renderTable();
+
+        if (user && !isAuthorized) {
+          if (typeof showToast === 'function') showToast("Kontoen har ikke tilgang til databasen.", "error");
+        }
       }
-      
-      // Re-render tabellen slik at rediger/slett-ikoner tilpasses tilgangen
-      renderTable();
     });
   }
 });
