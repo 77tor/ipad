@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iPad Inventar- og Databasestyring</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome Icons CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Inter Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="styles.css">
+
+  <!-- Firebase SDKs (v8 for Realtime Database & Auth) -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex flex-col overflow-hidden">
+
+  <!-- Toast melding -->
+  <div id="toast" class="fixed top-5 right-5 z-50 transform translate-y-[-100px] opacity-0 transition-all duration-300 px-4 py-3 rounded-xl shadow-lg flex items-center space-x-3 text-sm font-medium"></div>
+
+  <!-- Hovedmeny / Header -->
+  <header class="bg-white border-b border-slate-200 shrink-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3 sm:space-x-4">
+        <div class="flex items-center space-x-3">
+          <div class="p-2 bg-indigo-600 text-white rounded-xl shadow-sm">
+            <i class="fa-solid fa-tablet-screen-button text-lg"></i>
+          </div>
+          <div>
+            <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight">iPad Register</h1>
+            <p class="text-[11px] text-slate-500 hidden sm:block">Database for skoleenheter</p>
+          </div>
+        </div>
+
+        <!-- Skoleårsvelger -->
+        <div class="flex items-center space-x-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+          <span class="text-[11px] font-semibold text-slate-500 pl-2 hidden md:inline">Skoleår:</span>
+          <select id="selectSkolear" onchange="changeSkolear(this.value)" class="bg-white font-bold text-indigo-600 text-xs rounded-lg px-2 py-1 border border-slate-200 focus:outline-none cursor-pointer">
+            <!-- Fylles dynamisk fra JS -->
+          </select>
+          <button id="btnNewYear" onclick="openNewYearModal()" title="Start nytt skoleår / Arkiver" class="p-1 hover:bg-slate-200 text-slate-600 rounded-lg transition text-xs">
+            <i class="fa-solid fa-calendar-plus text-indigo-600"></i>
+          </button>
+        </div>
+
+        <!-- Status-indikator -->
+        <div id="connectionStatus" class="hidden lg:flex items-center space-x-2 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-200 text-xs font-medium">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span>Firebase tilkoblet</span>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2 sm:space-x-3">
+        <!-- Google Innlogging / Utlogging -->
+        <div id="authContainer" class="flex items-center space-x-2">
+          <button id="btnLogin" onclick="loginWithGoogle()" class="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs sm:text-sm font-medium rounded-xl transition flex items-center space-x-2">
+            <i class="fa-brands fa-google"></i>
+            <span>Logg inn</span>
+          </button>
+          
+          <div id="userInfo" class="hidden flex items-center space-x-2">
+            <span id="userEmailLabel" class="text-xs font-semibold text-slate-600 hidden md:inline"></span>
+            <button onclick="handleLogout()" class="px-3 py-2 bg-slate-100 hover:bg-red-50 hover:text-red-600 text-slate-600 text-xs sm:text-sm font-medium rounded-xl transition flex items-center space-x-1.5" title="Logg ut">
+              <i class="fa-solid fa-right-from-bracket"></i>
+              <span class="hidden sm:inline">Logg ut</span>
+            </button>
+          </div>
+        </div>
+
+        <button onclick="openReportModal()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-medium rounded-xl transition flex items-center space-x-2">
+          <i class="fa-solid fa-print text-indigo-600"></i>
+          <span class="hidden sm:inline">Rapport</span>
+        </button>
+        <button onclick="openHelpModal()" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-medium rounded-xl transition flex items-center space-x-2">
+          <i class="fa-solid fa-circle-question text-indigo-600"></i>
+          <span class="hidden sm:inline">Hjelp</span>
+        </button>
+        <button id="btnAddDevice" onclick="openDeviceModal()" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-medium rounded-xl transition shadow-sm flex items-center space-x-2">
+          <i class="fa-solid fa-plus"></i>
+          <span>Legg til iPad</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Arkivmodus Banner -->
+  <div id="archiveBanner" class="hidden bg-amber-500 text-white px-4 py-2 text-xs font-medium text-center shadow-inner flex items-center justify-center space-x-2">
+    <i class="fa-solid fa-box-archive"></i>
+    <span>Du ser nå på et <strong>historisk arkiv (<span id="archiveYearLabel"></span>)</strong>. Endringer er skrivebeskyttet.</span>
+  </div>
+
+  <!-- Hovedinnhold -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex-1 flex flex-col min-h-0 w-full space-y-4">
+    
+    <!-- Statistikk/Kort -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 shrink-0">
+      <div class="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Totalt registrert</p>
+          <p id="statTotal" class="text-xl font-bold text-slate-900 mt-0.5">0</p>
+        </div>
+        <div class="p-2.5 bg-slate-100 text-slate-600 rounded-xl">
+          <i class="fa-solid fa-layer-group text-base"></i>
+        </div>
+      </div>
+      
+      <div class="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Aktive / I bruk</p>
+          <p id="statActive" class="text-xl font-bold text-amber-600 mt-0.5">0</p>
+        </div>
+        <div class="p-2.5 bg-amber-50 text-amber-600 rounded-xl">
+          <i class="fa-solid fa-circle-check text-base"></i>
+        </div>
+      </div>
+
+      <div class="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">På lager / Ledig</p>
+          <p id="statAvailable" class="text-xl font-bold text-emerald-600 mt-0.5">0</p>
+        </div>
+        <div class="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
+          <i class="fa-solid fa-boxes-packing text-base"></i>
+        </div>
+      </div>
+
+      <div class="bg-white p-3.5 rounded-2xl border border-slate-200/80 shadow-sm flex items-center justify-between">
+        <div>
+          <p class="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Mangler Serienr</p>
+          <p id="statManglerSerienr" class="text-xl font-bold text-red-500 mt-0.5">0</p>
+        </div>
+        <div class="p-2.5 bg-red-50 text-red-500 rounded-xl">
+          <i class="fa-solid fa-triangle-exclamation text-base"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter og Søkelinje -->
+    <div class="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-sm space-y-3 md:space-y-0 md:flex md:items-center md:justify-between md:space-x-4 shrink-0">
+      <!-- Søk -->
+      <div class="relative flex-1 max-w-md">
+        <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+        <input id="searchInput" type="text" oninput="renderTable()" placeholder="Søk på elev, brukernavn, klasse, ipadnr, serienr..." class="w-full pl-9 pr-4 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition">
+      </div>
+
+      <!-- Filter-knapper -->
+      <div class="flex flex-wrap items-center gap-2 text-xs">
+        <div class="flex items-center space-x-1.5">
+          <span class="text-slate-500 font-medium">Klasse:</span>
+          <select id="filterTrinn" onchange="renderTable()" class="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+            <option value="Alle">Alle klasser</option>
+          </select>
+        </div>
+
+        <div class="flex items-center space-x-1.5">
+          <span class="text-slate-500 font-medium">Status:</span>
+          <select id="filterStatus" onchange="renderTable()" class="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20">
+            <option value="Alle">Alle statuser</option>
+            <option value="I bruk">I bruk (Elev/Skole)</option>
+            <option value="Tilgjengelig">Tilgjengelig (Lager)</option>
+            <option value="Kassert">Kassert / Utfaset</option>
+          </select>
+        </div>
+
+        <!-- Import / Export Knapper -->
+        <div id="importExportContainer" class="flex items-center space-x-1.5 border-l border-slate-200 pl-2">
+          <button onclick="exportToCSV()" title="Eksporter til Excel / CSV" class="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition text-xs">
+            <i class="fa-solid fa-file-excel text-emerald-600"></i>
+          </button>
+          <label title="Importer CSV-fil" class="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition cursor-pointer text-xs">
+            <i class="fa-solid fa-file-import text-indigo-600"></i>
+            <input type="file" id="csvFileInput" accept=".csv" class="hidden" onchange="importCSV(event)">
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabell over iPads -->
+    <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden flex-1 flex flex-col min-h-0">
+      <div class="overflow-y-auto flex-1 h-full">
+        <table class="w-full text-left text-sm border-collapse">
+          <thead class="sticky top-0 bg-slate-50 z-10 border-b border-slate-200 shadow-sm">
+            <tr class="text-xs font-semibold text-slate-500 uppercase tracking-wider select-none">
+              <th onclick="sortData('etternavn')" class="py-3 px-4 cursor-pointer hover:bg-slate-100/80 transition">
+                <div class="flex items-center space-x-1">
+                  <span>Elev / Bruker</span>
+                  <i id="sortIcon-etternavn" class="fa-solid fa-sort text-slate-300 text-[10px]"></i>
+                </div>
+              </th>
+              <th onclick="sortData('brukernavn')" class="py-3 px-4 cursor-pointer hover:bg-slate-100/80 transition">
+                <div class="flex items-center space-x-1">
+                  <span>Brukernavn</span>
+                  <i id="sortIcon-brukernavn" class="fa-solid fa-sort text-slate-300 text-[10px]"></i>
+                </div>
+              </th>
+              <th onclick="sortData('klasse')" class="py-3 px-4 cursor-pointer hover:bg-slate-100/80 transition">
+                <div class="flex items-center space-x-1">
+                  <span>Klasse</span>
+                  <i id="sortIcon-klasse" class="fa-solid fa-sort text-slate-300 text-[10px]"></i>
+                </div>
+              </th>
+              <th onclick="sortData('ipadnr')" class="py-3 px-4 cursor-pointer hover:bg-slate-100/80 transition">
+                <div class="flex items-center space-x-1">
+                  <span>Enhetsnavn / Modell / Serienr</span>
+                  <i id="sortIcon-ipadnr" class="fa-solid fa-sort text-slate-300 text-[10px]"></i>
+                </div>
+              </th>
+              <th onclick="sortData('status')" class="py-3 px-4 cursor-pointer hover:bg-slate-100/80 transition">
+                <div class="flex items-center space-x-1">
+                  <span>Status</span>
+                  <i id="sortIcon-status" class="fa-solid fa-sort text-slate-300 text-[10px]"></i>
+                </div>
+              </th>
+              <th onclick="sortData('notat')" class="py-3 px-4 cursor-pointer hover:bg-slate-100/80 transition">
+                <div class="flex items-center space-x-1">
+                  <span>Notat / Særskilt</span>
+                  <i id="sortIcon-notat" class="fa-solid fa-sort text-slate-300 text-[10px]"></i>
+                </div>
+              </th>
+              <th class="py-3 px-4 text-right">Handling</th>
+            </tr>
+          </thead>
+          <tbody id="ipadTableBody" class="divide-y divide-slate-100">
+            <!-- Rader fylles dynamisk fra JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Tom tilstand -->
+      <div id="emptyState" class="hidden p-12 text-center space-y-3">
+        <i class="fa-solid fa-tablet-screen-button text-4xl text-slate-300"></i>
+        <h3 class="text-base font-semibold text-slate-800">Ingen enheter registrert</h3>
+        <p class="text-sm text-slate-500 max-w-sm mx-auto">Det er ingen iPad-er registrert i databasen enda.</p>
+        <button onclick="loadSampleData()" class="mt-2 inline-flex items-center space-x-2 px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-sm font-medium transition">
+          <i class="fa-solid fa-wand-magic-sparkles"></i>
+          <span>Fyll ut med eksempeldata</span>
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL: Legg til / Rediger iPad -->
+  <div id="deviceModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-lg w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 id="modalTitle" class="text-lg font-bold text-slate-900">Legg til ny iPad</h3>
+        <button onclick="closeDeviceModal()" class="text-slate-400 hover:text-slate-600 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <form id="deviceForm" onsubmit="handleSaveDevice(event)" class="space-y-4">
+        <input type="hidden" id="editDeviceId">
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Etternavn</label>
+            <input type="text" id="inputEtternavn" placeholder="f.eks. Fredly" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Fornavn</label>
+            <input type="text" id="inputFornavn" placeholder="f.eks. Andreas" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Brukernavn</label>
+          <input type="text" id="inputBrukernavn" placeholder="f.eks. 14andreas1" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Trinn</label>
+            <input type="text" id="inputTrinn" placeholder="f.eks. 6" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Klasse</label>
+            <input type="text" id="inputKlasse" placeholder="f.eks. 6a" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">iPad nr.</label>
+            <input type="text" id="inputIpadnr" required placeholder="f.eks. 1001" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Serienr. / Modellnr (f.eks A2602)</label>
+            <input type="text" id="inputSerienr" placeholder="f.eks. A2602 eller F6KVN01234" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500">
+          </div>
+        </div>
+
+        <!-- Tredelt linje for Dato, Skolested og Status -->
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Lagt i Endpoint</label>
+            <input type="text" id="inputLagtIEndpoint" placeholder="f.eks. 22.08.2024" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Skolested</label>
+            <input type="text" id="inputSkolested" placeholder="f.eks. Heståsen, Brattbakken" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-600 mb-1">Status</label>
+            <select id="inputStatus" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500">
+              <option value="I bruk">I bruk</option>
+              <option value="Tilgjengelig">Tilgjengelig</option>
+              <option value="Kassert">Kassert</option>
+              <option value="Borte">Borte</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 mb-1">Notat / Særskilt</label>
+          <textarea id="inputNotat" rows="2" placeholder="Valgfritt notat..." class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:border-indigo-500"></textarea>
+        </div>
+
+        <div class="flex justify-end space-x-3 pt-3 border-t border-slate-100">
+          <button type="button" onclick="closeDeviceModal()" class="px-4 py-2 bg-slate-100 text-slate-700 text-sm font-medium rounded-xl hover:bg-slate-200 transition">Avbryt</button>
+          <button type="submit" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-xl transition shadow-sm">Lagre iPad</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Hjelp -->
+  <div id="helpModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-xl w-full p-6 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-lg font-bold text-slate-900"><i class="fa-solid fa-circle-info text-indigo-600 mr-2"></i>Om Excel CSV Import</h3>
+        <button onclick="closeHelpModal()" class="text-slate-400 hover:text-slate-600 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <div class="space-y-3 text-xs text-slate-600 leading-relaxed">
+        <p>CSV-importen er tilpasset din Excel-fil med følgende kolonner:</p>
+        <div class="bg-slate-100 p-3 rounded-xl font-mono text-[11px] text-slate-700">
+          Etternavn, Fornavn, Trinn, Klasse, Brukernavn, iPadnr., Serienr., Lagt i Endpoint, Status, Notat
+        </div>
+        <p>Systemet slår automatisk opp modellnavn via <code class="bg-slate-200 px-1 rounded">iPad-navn.js</code> dersom du legger inn A-modellnummer i Serienr.-feltet!</p>
+      </div>
+
+      <div class="flex justify-end pt-2 border-t border-slate-100">
+        <button onclick="closeHelpModal()" class="px-4 py-2 bg-indigo-600 text-white text-xs font-medium rounded-xl hover:bg-indigo-700">Skjønt!</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Rapporter og Utskrift -->
+  <div id="reportModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-lg w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-lg font-bold text-slate-900 flex items-center space-x-2">
+          <i class="fa-solid fa-print text-indigo-600"></i>
+          <span>Generer Rapport / Utskrift</span>
+        </h3>
+        <button onclick="closeReportModal()" class="text-slate-400 hover:text-slate-600 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <div class="space-y-4 text-xs text-slate-700">
+        <div class="space-y-3 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+          <p class="font-bold text-slate-800 uppercase text-[10px] tracking-wider">1. Velg Utvalg / Filter</p>
+          
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block font-semibold mb-1">Klasse / Trinn</label>
+              <select id="reportFilterKlasse" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-500">
+                <option value="Alle">Alle klasser</option>
+              </select>
+            </div>
+            <div>
+              <label class="block font-semibold mb-1">Status / Tilstand</label>
+              <select id="reportFilterStatus" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-500">
+                <option value="Alle">Alle statuser</option>
+                <option value="I bruk">Kun I bruk (Elev/Skole)</option>
+                <option value="Tilgjengelig">Kun På lager / Tilgjengelig</option>
+                <option value="Kassert">Kun Kassert / Borte</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="block font-semibold mb-1">Skolested / Lokasjon</label>
+            <select id="reportFilterSted" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-500">
+              <option value="Alle">Alle steder (Heståsen & Brattbakken)</option>
+              <option value="Heståsen">Kun Heståsen</option>
+              <option value="Brattbakken">Kun Brattbakken</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="space-y-2.5 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+          <p class="font-bold text-slate-800 uppercase text-[10px] tracking-wider">2. Velg Kolonner som skal vises</p>
+          
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <label class="flex items-center space-x-2"><input type="checkbox" id="colElev" checked class="rounded text-indigo-600"> <span>Elev / Bruker</span></label>
+            <label class="flex items-center space-x-2"><input type="checkbox" id="colBrukernavn" checked class="rounded text-indigo-600"> <span>Brukernavn</span></label>
+            <label class="flex items-center space-x-2"><input type="checkbox" id="colKlasse" checked class="rounded text-indigo-600"> <span>Klasse</span></label>
+            <label class="flex items-center space-x-2"><input type="checkbox" id="colEnhet" checked class="rounded text-indigo-600"> <span>Enhetsnavn / ID</span></label>
+            <label class="flex items-center space-x-2"><input type="checkbox" id="colSerienr" checked class="rounded text-indigo-600"> <span>Serienr. / Modell</span></label>
+            <label class="flex items-center space-x-2"><input type="checkbox" id="colStatus" checked class="rounded text-indigo-600"> <span>Status / Dato / Sted</span></label>
+            <label class="flex items-center space-x-2"><input type="checkbox" id="colNotat" checked class="rounded text-indigo-600"> <span>Notat / Merknad</span></label>
+          </div>
+        </div>
+
+        <div>
+          <label class="block font-semibold mb-1">Rapporttittel (valgfri)</label>
+          <input type="text" id="reportTitleInput" placeholder="f.eks. Lagerliste Heståsen - Årsrapport 2026" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:outline-none focus:border-indigo-500">
+        </div>
+      </div>
+
+      <div class="flex justify-end space-x-3 pt-3 border-t border-slate-100">
+        <button type="button" onclick="closeReportModal()" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-medium rounded-xl hover:bg-slate-200 transition">Avbryt</button>
+        <button onclick="generatePrintReport()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-xl transition shadow-sm flex items-center space-x-2">
+          <i class="fa-solid fa-print"></i>
+          <span>Skriv ut / Åpne PDF</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Start nytt skoleår -->
+  <div id="newYearModal" class="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-100 max-w-lg w-full p-6 space-y-5">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-lg font-bold text-slate-900 flex items-center space-x-2">
+          <i class="fa-solid fa-calendar-plus text-indigo-600"></i>
+          <span>Start Nytt Skoleår / Arkivering</span>
+        </h3>
+        <button onclick="closeNewYearModal()" class="text-slate-400 hover:text-slate-600 p-1"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+
+      <div class="space-y-4 text-xs text-slate-600">
+        <p>Dette valget arkiverer inneværende skoleår og klargjør mappen for det nye skoleåret.</p>
+        
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1">Navn på nytt skoleår</label>
+          <input type="text" id="inputNewSkolearName" placeholder="f.eks. 2026-2027" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-indigo-600 focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <div class="space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
+          <p class="font-bold text-slate-800 uppercase text-[10px] tracking-wider">Velg hvordan elevdata skal overføres:</p>
+          
+          <label class="flex items-start space-x-2.5 cursor-pointer">
+            <input type="radio" name="newYearMethod" value="opprykk" checked class="mt-0.5 text-indigo-600">
+            <div>
+              <span class="font-semibold text-slate-800">Automatisk klasseopprykk</span>
+              <p class="text-[11px] text-slate-500">Flytter 1A → 2A, 2A → 3A osv. 7. trinn Frigjøres/Tilgjengelig for nye elever.</p>
+            </div>
+          </label>
+
+          <label class="flex items-start space-x-2.5 cursor-pointer mt-2">
+            <input type="radio" name="newYearMethod" value="tom" class="mt-0.5 text-indigo-600">
+            <div>
+              <span class="font-semibold text-slate-800">Start med blanke elevfelt (Kun behold iPad-er)</span>
+              <p class="text-[11px] text-slate-500">Beholder alle iPad-nr og serienummer, men tømmer elevnavn og klasse for ny CSV-import.</p>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div class="flex justify-end space-x-3 pt-3 border-t border-slate-100">
+        <button type="button" onclick="closeNewYearModal()" class="px-4 py-2 bg-slate-100 text-slate-700 text-xs font-medium rounded-xl hover:bg-slate-200 transition">Avbryt</button>
+        <button onclick="executeStartNewYear()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-xl transition shadow-sm flex items-center space-x-2">
+          <i class="fa-solid fa-box-archive"></i>
+          <span>Opprett nytt skoleår</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Skript -->
+  <script src="iPad-navn.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
